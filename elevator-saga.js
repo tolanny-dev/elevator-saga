@@ -1,28 +1,36 @@
 {
     init: function(elevators, floors) {
-        var elevator = elevators[0]; // Let's use the first elevator
-        
-        // Whenever the elevator is idle (has no more queued destinations) ...
-        elevator.on("idle", function() {
-            // let's go to all the floors (or did we forget one?
-            // if idle go to bottom floor and listen for indicators
-            elevator.goToFloor(0);
-            if(elevator.goingUpIndicator()) {
-                elevator.destinationQueue.push(1);
-                elevator.checkDestinationQueue();
-            } else if(elevator.goingUpIndicator()) {
-                elevator.destinationQueue.push(2);
-                elevator.checkDestinationQueue();
-            }
+        // loop through both elevators
+        elevators.forEach(function(current, index){
+            // go to floor pressed
+            current.on("floor_button_pressed", function(floorNum) { 
+                current.goToFloor(floorNum);
+            });
+            current.on("passing_floor", function(floorNum, direction) { 
+                if(current.loadFactor() < 0.8){
+                    if(direction === "up" && waitingBelow[floorNum] > 0){
+                        current.goToFloor(floorNum, true);
+                        waitingBelow[floorNum]--;
+                    }
+                    if(direction === "down" && waitingAbove[floorNum] > 0){
+                        current.goToFloor(floorNum, true);
+                        waitingAbove[floorNum]--;
+                    }
+                }
+            });
+            current.on("idle", function(floorNum) { current.goToFloor(0); } );
         });
-        elevator.on("floor_button_pressed", function(floor) {
-            // lise=ten for buttons pressed, add to Q, execute elevator
-            elevator.destinationQueue.push(floor);
-            elevator.checkDestinationQueue();
-            if (!elevator.destinationQueue.includes(floor)) {
-                elevator.destinationQueue.push(floor);
-                elevator.checkDestinationQueue();
-            }
+        
+        var waitingAbove= [];
+        var waitingBelow= [];
+        floors.forEach(function(_,index){
+            waitingAbove.push(0);
+            waitingBelow.push(0);
+        });
+        
+        floors.forEach(function(current, index){
+            current.on("up_button_pressed", function() { waitingAbove[index]++; } );
+            current.on("down_button_pressed", function() { waitingBelow[index]++; } );
         });
     },
     update: function(dt, elevators, floors) {
